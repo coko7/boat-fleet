@@ -47,7 +47,8 @@ resume:;resume an existing activity
 stop:;pause/stop the current activity
 cancel:;cancel the current activity
 meeting:;start a new meeting from a list of presets
-edit:;modify activity logs'
+edit:;modify activity logs
+configure:;tweak the boat configuration'
 
 meeting_presets='Daily meeting:daily
 Weekly meeting:weekly
@@ -148,7 +149,7 @@ resume)
   act_id=$(jq --raw-output '.[] | "\(.id): \(.name)"' <<<"$activities" |
     sort --numeric-sort --reverse |
     fzf-rofi.sh \
-      --delimiter=':' --nth=1 --accept-nth=1 --input-label ' Input ' \
+      --delimiter=':' --accept-nth=1 --input-label ' Input ' \
       --list-label ' Recent Activities ' --preview="figlet {1} | lolcat --force")
 
   [[ -z "$act_id" ]] && exit 1
@@ -169,6 +170,10 @@ stop)
   act_name=$(jq --raw-output '.name' <<<"$activity")
 
   boat stop && notify_info "Stopping activity: $act_name ($act_id)"
+  ;;
+
+configure)
+  floating-neovide.sh "boat-cfg" "$XDG_CONFIG_HOME/boat/config.toml"
   ;;
 *)
   ;;
