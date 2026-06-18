@@ -49,12 +49,16 @@ TASK_NOTES_DIR="$HOME/Documents/boat-acts"
 WEB_BROWSER=work-web-browser.sh
 CUSTOMERS_FILE_PATH="$DATA_DIR_PATH/customers.txt"
 
+_current_json=$(boat get --json 2>/dev/null)
+_has_jira=$(jq --raw-output '[.activity.tags[] | select(startswith("jira:"))] | first // ""' <<<"$_current_json" 2>/dev/null)
+
 actions='
 cancel:;❌ cancel the current activity
 config:;⚙️ tweak the boat configuration
 edit:;✏️ modify activity logs
-get:;🔍 display info about the current activity
-jira:;⏳ open task in jira
+get:;🔍 display info about the current activity'
+[[ -n "$_has_jira" ]] && actions+=$'\njira:;⏳ open task in jira'
+actions+='
 meeting:;👋 start a new meeting from a list of presets
 new:;✨ create and start a new activity with full details
 note:;📝 view/take notes for the current activity
@@ -73,7 +77,7 @@ pick=$(
   column --separator=';' --table <<<"$actions" | fzf-rofi.sh \
     --delimiter=':' --nth=1 --accept-nth=1 \
     --border-label ' Boat Fleet Actions ' --input-label ' Input ' \
-    --list-label ' Actions ' --preview="echo {1} | cfonts --align center | lolcat --force"
+    --list-label ' Actions ' --preview="$SCRIPT_DIR/activity-info.sh"
 )
 
 [[ -z "$pick" ]] && exit 1
@@ -140,37 +144,12 @@ note)
   ;;
 
 get)
-  if ! current=$(boat get --json); then
+  if ! boat get --json &>/dev/null; then
     notify_error "No current activity"
     exit 1
   fi
 
-  act_id=$(jq '.activity.id' <<<"$current")
-  act_name=$(jq --raw-output '.activity.name' <<<"$current")
-  act_tags=$(jq --raw-output '.activity.tags | join(", ")' <<<"$current")
-
-  starts_at=$(jq --raw-output '.log.starts_at' <<<"$current")
-  ends_at=$(jq --raw-output '.log.ends_at // empty' <<<"$current")
-
-  start_epoch=$(date -d "$starts_at" +%s)
-  end_epoch=$([[ -n "$ends_at" ]] && date -d "$ends_at" +%s || date +%s)
-  elapsed_secs=$((end_epoch - start_epoch))
-  elapsed="$((elapsed_secs / 3600))h $(((elapsed_secs % 3600) / 60))m"
-
-  customer=$(jq --raw-output '[.activity.tags[] | select(startswith("customer:"))] | first // "" | ltrimstr("customer:")' <<<"$current")
-  jira_tag=$(jq --raw-output '[.activity.tags[] | select(startswith("jira:"))] | first // "" | ltrimstr("jira:")' <<<"$current")
-
-  gum style \
-    --border rounded --border-foreground 212 \
-    --padding "1 2" --margin "1" \
-    "$(gum style --foreground 212 --bold 'Current Activity')" \
-    "" \
-    "$(gum style --foreground 99 'Name:    ')$act_name" \
-    "$(gum style --foreground 99 'ID:      ')$act_id" \
-    "$(gum style --foreground 99 'Elapsed: ')$elapsed" \
-    "$(gum style --foreground 99 'Customer:')${customer:--}" \
-    "$(gum style --foreground 99 'Jira:    ')${jira_tag:--}" \
-    "$(gum style --foreground 99 'Tags:    ')$act_tags"
+  "$SCRIPT_DIR/activity-info.sh"
 
   read -rsp $'\nPress any key to close...' -n1
   ;;
