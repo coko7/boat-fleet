@@ -50,17 +50,17 @@ WEB_BROWSER=work-web-browser.sh
 CUSTOMERS_FILE_PATH="$DATA_DIR_PATH/customers.txt"
 
 actions='
-❌ cancel:;cancel the current activity
-⚙️ config:;tweak the boat configuration
-✏️ edit:;modify activity logs
-🔍 get:;display info about the current activity
-⏳ jira:;open task in jira
-👋 meeting:;start a new meeting from a list of presets
-✨ new:;create and start a new activity with full details
-📝 note:;view/take notes for the current activity
-⚡ quick:;quick start a new activity
-▶️ resume:;resume an existing activity
-⏸️ stop:;pause/stop the current activity
+cancel:;❌ cancel the current activity
+config:;⚙️ tweak the boat configuration
+edit:;✏️ modify activity logs
+get:;🔍 display info about the current activity
+jira:;⏳ open task in jira
+meeting:;👋 start a new meeting from a list of presets
+new:;✨ create and start a new activity with full details
+note:;📝 view/take notes for the current activity
+quick:;⚡ quick start a new activity
+resume:;▶️ resume an existing activity
+stop:;⏸️ pause/stop the current activity
 '
 
 meeting_presets='Daily meeting:daily
@@ -73,8 +73,7 @@ pick=$(
   column --separator=';' --table <<<"$actions" | fzf-rofi.sh \
     --delimiter=':' --nth=1 --accept-nth=1 \
     --border-label ' Boat Fleet Actions ' --input-label ' Input ' \
-    --list-label ' Actions ' --preview="echo {1} | cfonts --align center | lolcat --force" |
-    cut --delimiter ' ' --fields=2
+    --list-label ' Actions ' --preview="echo {1} | cfonts --align center | lolcat --force"
 )
 
 [[ -z "$pick" ]] && exit 1
