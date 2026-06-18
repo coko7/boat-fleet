@@ -29,6 +29,7 @@ ensure_installed hyprctl # Hyprland dispatcher, used to launch floating neovide 
 
 # Styling only
 ensure_installed figlet # used for big ASCII art text in the preview pane
+ensure_installed cfonts # used for big, sexy, ASCII art text
 ensure_installed lolcat # used for colorful output in the preview pane and notifications
 
 # custom scripts
@@ -48,15 +49,18 @@ TASK_NOTES_DIR="$HOME/Documents/boat-acts"
 WEB_BROWSER=work-web-browser.sh
 CUSTOMERS_FILE_PATH="$DATA_DIR_PATH/customers.txt"
 
-actions='new:;start a new activity
-note:;view/take notes for the current activity
-jira:;open task in jira
-resume:;resume an existing activity
-stop:;pause/stop the current activity
-cancel:;cancel the current activity
-meeting:;start a new meeting from a list of presets
-edit:;modify activity logs
-configure:;tweak the boat configuration'
+actions='
+❌ cancel:;cancel the current activity
+⚙️ config:;tweak the boat configuration
+✏️ edit:;modify activity logs
+⏳ jira:;open task in jira
+👋 meeting:;start a new meeting from a list of presets
+✨ new:;create and start a new activity with full details
+📝 note:;view/take notes for the current activity
+⚡ quick:;quick start a new activity
+▶️ resume:;resume an existing activity
+⏸️ stop:;pause/stop the current activity
+'
 
 meeting_presets='Daily meeting:daily
 Weekly meeting:weekly
@@ -64,10 +68,13 @@ Miscellaneous meeting:misc'
 
 # Actual script logic
 
-pick=$(column --separator=';' --table <<<"$actions" | fzf-rofi.sh \
-  --delimiter=':' --nth=1 --accept-nth=1 \
-  --border-label ' Boat Fleet Actions ' --input-label ' Input ' \
-  --list-label ' Actions ' --preview="figlet {1} | lolcat --force")
+pick=$(
+  column --separator=';' --table <<<"$actions" | fzf-rofi.sh \
+    --delimiter=':' --nth=1 --accept-nth=1 \
+    --border-label ' Boat Fleet Actions ' --input-label ' Input ' \
+    --list-label ' Actions ' --preview="echo {1} | cfonts --align center | lolcat --force" |
+    cut --delimiter ' ' --fields=2
+)
 
 [[ -z "$pick" ]] && exit 1
 
@@ -149,17 +156,51 @@ jira)
   "$WEB_BROWSER" "$full_url"
   ;;
 
-new)
-  echo " New Activity" | figlet -f slant | lolcat --force --seed 42
+quick)
+  echo "quick" | cfonts --align center | lolcat --force --seed 42
+
   if ! act_name=$(gum input --placeholder="work on boat-cli" --prompt="Activity name> "); then
     exit 1
   fi
-
-  # customer=$(gum filter <"$CUSTOMERS_FILE_PATH")
-
   [[ -z "$act_name" ]] && exit 1
 
   act_id=$(boat new "$act_name" --tags task:misc --start-now --json | jq '.id')
+  notify_info "Started new activity: $act_name ($act_id)"
+  exit 0
+  ;;
+
+new)
+  echo "new" | cfonts --align center | lolcat --force --seed 42
+
+  if ! act_name=$(gum input --placeholder="work on boat-cli" --prompt="Activity name> "); then
+    exit 1
+  fi
+  [[ -z "$act_name" ]] && exit 1
+
+  customer=$(gum filter --placeholder="Select customer (Esc to skip)..." <"$CUSTOMERS_FILE_PATH" || true)
+  jira_issue=$(gum input --placeholder="e.g. PROJ-123 (Enter to skip)" --prompt="Jira issue> " || true)
+
+  tags=(task:misc)
+  if [[ -n "$customer" ]]; then
+    customer_slug=$(echo "$customer" | tr '[:upper:]' '[:lower:]' | tr ' ' '-')
+    tags+=("customer:$customer_slug")
+  fi
+
+  if [[ -n "$jira_issue" ]]; then
+    tags+=("jira:$jira_issue")
+  fi
+
+  tags_args=()
+  for tag in "${tags[@]}"; do
+    tags_args+=(--tags "$tag")
+  done
+
+  confirm_msg="Start \"$act_name\""
+  [[ -n "$customer" ]] && confirm_msg+=" for $customer"
+  [[ -n "$jira_issue" ]] && confirm_msg+=" ($jira_issue)"
+  gum confirm "$confirm_msg?" || exit 1
+
+  act_id=$(boat new "$act_name" "${tags_args[@]}" --start-now --json | jq '.id')
   notify_info "Started new activity: $act_name ($act_id)"
   exit 0
   ;;
@@ -182,7 +223,7 @@ resume)
     sort --numeric-sort --reverse |
     fzf-rofi.sh \
       --delimiter=':' --accept-nth=1 --input-label ' Input ' \
-      --list-label ' Recent Activities ' --preview="figlet {1} | lolcat --force")
+      --list-label ' Recent Activities ' --preview="echo {1} | cfonts --align center | lolcat --force")
 
   [[ -z "$act_id" ]] && exit 1
 
@@ -204,7 +245,7 @@ stop)
   boat stop && notify_info "Stopping activity: $act_name ($act_id)"
   ;;
 
-configure)
+config)
   floating-neovide.sh "boat-cfg" "$XDG_CONFIG_HOME/boat/config.toml"
   ;;
 *)
