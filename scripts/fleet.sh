@@ -38,11 +38,19 @@ ensure_installed ntfy-toast.sh       # a custom script to send notifications via
 
 # Global declarations
 
+SCRIPT_DIR="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
+set -a
+source "$SCRIPT_DIR/.env"
+set +a
+
 NTFY_TOPIC='ntfy-boat-fleet'
 TASK_NOTES_DIR="$HOME/Documents/boat-acts"
+WEB_BROWSER=work-web-browser.sh
+CUSTOMERS_FILE_PATH="$DATA_DIR_PATH/customers.txt"
 
 actions='new:;start a new activity
 note:;view/take notes for the current activity
+jira:;open task in jira
 resume:;resume an existing activity
 stop:;pause/stop the current activity
 cancel:;cancel the current activity
@@ -97,8 +105,11 @@ meeting)
     ;;
   esac
 
-  meet_id=$(boat report --filter-by-tags "$meeting_tag" --period 'all-time' --json | jq --raw-output '.[0].id')
-  # echo "$meet_id" | less
+  meeting=$(boat report --filter-by-tags "$meeting_tag" --period 'all-time' --json | jq '.[0]')
+  meet_id=$(jq '.id' <<<"$meeting")
+  meeting_name=$(jq --raw-output '.name' <<<"$meeting")
+  boat start "$meet_id"
+  notify_info "Started meeting: $meeting_name ($meet_id)"
   ;;
 note)
   if ! current=$(boat get --json); then
@@ -109,8 +120,10 @@ note)
   act_id=$(jq '.activity.id' <<<"$current")
   act_name=$(jq --raw-output '.activity.name' <<<"$current")
 
-  note_path="$TASK_NOTES_DIR/note_${act_id}.md"
+  note_dir="$TASK_NOTES_DIR/${act_id}"
+  note_path="$note_dir/note.md"
   if [ ! -f "$note_path" ]; then
+    mkdir --parents "$note_dir"
     notify_info "No existing notes for current activity. Creating new note at $note_path"
     echo "# ${act_name} - Notes" >"$note_path"
   fi
@@ -119,11 +132,30 @@ note)
   hyprctl dispatch exec "floating-neovide.sh $wm_class_prefix $note_path"
   ;;
 
+jira)
+  [[ -z "$ATLASSIAN_BASE_URL" ]] && {
+    notify_error "env var not set: ATLASSIAN_BASE_URL"
+    exit 1
+  }
+
+  if ! current=$(boat get --json); then
+    notify_error "No current activity"
+    exit 1
+  fi
+
+  jira_issue=$(jq --raw-output '[.activity.tags[] | select(startswith("jira"))] | first' <<<"$current" |
+    cut --delimiter=':' --fields=2)
+  full_url="$ATLASSIAN_BASE_URL/browse/$jira_issue"
+  "$WEB_BROWSER" "$full_url"
+  ;;
+
 new)
   echo " New Activity" | figlet -f slant | lolcat --force --seed 42
   if ! act_name=$(gum input --placeholder="work on boat-cli" --prompt="Activity name> "); then
     exit 1
   fi
+
+  # customer=$(gum filter <"$CUSTOMERS_FILE_PATH")
 
   [[ -z "$act_name" ]] && exit 1
 
