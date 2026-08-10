@@ -7,6 +7,20 @@ function ensure_installed() {
   fi
 }
 
+function print_usage() {
+  cat <<EOF
+Usage: fleet.sh [OPTION]
+
+Interactive fzf/rofi front-end for boat-cli. With no options, opens the
+Boat Fleet Actions menu (quick, new, get, note, jira, resume, stop,
+cancel, meeting, edit, config).
+
+Options:
+  -w, --current-activity-workspace  print the notes dir path for the current activity
+  -h, --help                        show this help and exit
+EOF
+}
+
 ###################################################################
 #                                                                 #
 #  ____                  _                               _        #
@@ -49,6 +63,28 @@ TASK_NOTES_DIR="$HOME/Documents/boat-acts"
 WEB_BROWSER=work-web-browser.sh
 CUSTOMERS_FILE_PATH="$DATA_DIR_PATH/customers.txt"
 PEOPLE_FILE_PATH="$DATA_DIR_PATH/people.json"
+
+case "$1" in
+--help | -h)
+  print_usage
+  exit 0
+  ;;
+--current-activity-workspace | -w)
+  if ! current=$(boat get --json); then
+    echo "No current activity" >&2
+    exit 1
+  fi
+
+  act_id=$(jq '.activity.id' <<<"$current")
+  echo "$TASK_NOTES_DIR/${act_id}"
+  exit 0
+  ;;
+"") ;;
+*)
+  print_usage >&2
+  exit 1
+  ;;
+esac
 
 _current_json=$(boat get --json 2>/dev/null)
 _has_jira=$(jq --raw-output '[.activity.tags[] | select(startswith("jira:"))] | first // ""' <<<"$_current_json" 2>/dev/null)
