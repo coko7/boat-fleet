@@ -48,6 +48,7 @@ NTFY_TOPIC='ntfy-boat-fleet'
 TASK_NOTES_DIR="$HOME/Documents/boat-acts"
 WEB_BROWSER=work-web-browser.sh
 CUSTOMERS_FILE_PATH="$DATA_DIR_PATH/customers.txt"
+PEOPLE_FILE_PATH="$DATA_DIR_PATH/people.json"
 
 _current_json=$(boat get --json 2>/dev/null)
 _has_jira=$(jq --raw-output '[.activity.tags[] | select(startswith("jira:"))] | first // ""' <<<"$_current_json" 2>/dev/null)
@@ -100,17 +101,45 @@ meeting)
 
   case "$meeting_tag" in
   meeting:misc)
+    echo "meet" | cfonts --align center | lolcat --force --seed 42
+
     now=$(date +"%Y-%m-%d %H:%M")
     def_meeting_name="unnamed meeting (at $now)"
     if ! meeting_name=$(gum input --placeholder="$def_meeting_name" --prompt="Meeting name> "); then
       exit 1
     fi
+    [[ -z "$meeting_name" ]] && meeting_name=$def_meeting_name
 
-    if [ -z "$meeting_name" ]; then
-      meeting_name=$def_meeting_name
+    selected_people=$(jq --raw-output '.[].display' "$PEOPLE_FILE_PATH" | gum filter --no-limit --placeholder="Select attendees (Esc to skip)..." || true)
+
+    tags=(meeting:misc)
+    if [[ -n "$selected_people" ]]; then
+      attendee_lines=()
+      while IFS= read -r person_display; do
+        person_name=$(jq --raw-output --arg d "$person_display" '.[] | select(.display == $d) | .name' "$PEOPLE_FILE_PATH")
+        [[ -n "$person_name" ]] && tags+=("with:$person_name")
+        attendee_lines+=("  • $person_display")
+      done <<<"$selected_people"
+      gum style --foreground 99 "Attendees:" "${attendee_lines[@]}"
     fi
 
-    act_id=$(boat new "$meeting_name" --tags meeting:misc --start-now --json | jq '.id')
+    if [[ -n "$_current_json" ]]; then
+      _parent_is_meeting=$(jq --raw-output '[.activity.tags[] | select(startswith("meeting:"))] | first // ""' <<<"$_current_json")
+      if [[ -z "$_parent_is_meeting" ]]; then
+        _parent_id=$(jq '.activity.id' <<<"$_current_json")
+        _parent_name=$(jq --raw-output '.activity.name' <<<"$_current_json")
+        if gum confirm "Sub-activity of \"$_parent_name\"?"; then
+          tags+=("sub:$_parent_id")
+        fi
+      fi
+    fi
+
+    tags_args=()
+    for tag in "${tags[@]}"; do
+      tags_args+=(--tags "$tag")
+    done
+
+    act_id=$(boat new "$meeting_name" "${tags_args[@]}" --start-now --json | jq '.id')
     notify_info "Started meeting: $meeting_name ($act_id)"
     exit 0
     ;;
@@ -140,7 +169,7 @@ note)
   fi
 
   wm_class_prefix="boat-view-note-$act_id"
-  hyprctl dispatch exec "floating-neovide.sh $wm_class_prefix $note_path"
+  hyprctl dispatch "hl.dsp.exec_raw(\"floating-neovide.sh $wm_class_prefix $note_path\")"
   ;;
 
 get)
