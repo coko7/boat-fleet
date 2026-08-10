@@ -1,4 +1,4 @@
-#!/usr/bin/env boat
+#!/usr/bin/env bash
 
 function ensure_installed() {
   if ! command -v "$1" &>/dev/null; then
