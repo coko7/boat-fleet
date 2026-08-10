@@ -46,3 +46,14 @@ Here are all the programs/scripts you need to have in your `$PATH` to be able to
 | `meeting` | Start a meeting from a list of presets (daily, weekly, misc) |
 | `edit` | Edit today's activity logs |
 | `config` | Open the boat configuration file in Neovide |
+
+## 🚩 CLI Options
+
+`fleet.sh` also accepts a single flag instead of opening the interactive menu:
+
+| Option | Description |
+|--------|-------------|
+| `-w`, `--current-activity-workspace` | Print the notes dir path for the current activity |
+| `-h`, `--help` | Show usage and exit |
+
+Passing any other/unknown option prints usage to stderr and exits with a non-zero status.
