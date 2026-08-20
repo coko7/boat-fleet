@@ -258,16 +258,21 @@ new)
   [[ -z "$act_name" ]] && exit 1
 
   customer=$(gum filter --placeholder="Select customer (Esc to skip)..." <"$CUSTOMERS_FILE_PATH" || true)
-  jira_issue=$(gum input --placeholder="e.g. PROJ-123 (Enter to skip)" --prompt="Jira issue> " || true)
 
-  tags=(task:misc)
+  tags=()
   if [[ -n "$customer" ]]; then
     customer_slug=$(echo "$customer" | tr '[:upper:]' '[:lower:]' | tr ' ' '-')
     tags+=("customer:$customer_slug")
+  else
+    notify_error "Must select a customer before starting activity"
+    exit 1
   fi
 
+  jira_issue=$(gum input --placeholder="e.g. PROJ-123 (Enter to skip)" --prompt="Jira issue> " || true)
   if [[ -n "$jira_issue" ]]; then
     tags+=("jira:$jira_issue")
+  else
+    tags+=('task:misc')
   fi
 
   tags_args=()
